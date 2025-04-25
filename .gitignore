@@ -26,26 +26,15 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-*.msi
-*.zip
-*.exe
-*GraphIndexAPI
-*GraphIndexBaselines
-*dump
-*heaps.py
-*HSSL.ipynb
-*torch_bruteforce.py
-*VPTree.py
-*blobs_n=16000_centers=5
-*blobs_n=32000_centers=5
-*blobs_n=64000_centers=5
-*blobs_n=128000_centers=5
-*mnist
-*blobs_n=16000_centers=5.hdf5
-*blobs_n=32000_centers=5.hdf5
-*blobs_n=64000_centers=5.hdf5
-*blobs_n=128000_centers=5.hdf5
-*mnist.hdf5
+GraphIndexAPI
+GraphIndexBaselines
+local_py
+local
+tmp
+
+# TODO: Do not ignore them for publication, but in the meantime
+datasets
+results
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
