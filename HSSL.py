@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 import numpy as np
 import h5py
 from scipy.cluster.hierarchy import DisjointSet
-from VPTree import VPTree
-from heaps import MinPrioQueue
+from local_py.VPTree import VPTree
+from local_py.heaps import MinPrioQueue
 from tqdm.notebook import tqdm
 from more_itertools import peekable
 # import torch
