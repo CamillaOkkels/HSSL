@@ -31,9 +31,10 @@ GraphIndexBaselines
 local_py
 local
 tmp
+*.npz
 
 # TODO: Do not ignore them for publication, but in the meantime
-datasets
+data
 results
 
 # PyInstaller
