@@ -190,16 +190,16 @@ def celeba():
     write_output(X, "celeba")
 
 
-def blobs(n, d):
+def blobs(n, dim, centers):
     from sklearn.datasets import make_blobs
     from sklearn.preprocessing import StandardScaler
 
-    name = f"blobs-{n // 1000}k-{d}"
+    name = f"blobs-{n // 1000}k-{dim}-{centers}"
 
     if os.path.exists(get_dataset_fn(name)):
         return
 
-    X = make_blobs(n, d, centers=d, random_state=42)[0].astype(np.float32)
+    X = make_blobs(n, dim, centers=centers, random_state=42)[0].astype(np.float32)
 
     write_output(np.array(X), name)   
 
@@ -225,11 +225,29 @@ DATASETS = {
     'celeba': {
         'prepare': celeba,
     },
-    'blobs-1k-5': {
-        'prepare': lambda: blobs(1_000, 5),
+    'blobs-2k-10-5': {
+        'prepare': lambda: blobs(2_000, 10, 5),
     },
-    'blobs-100k-5': {
-        'prepare': lambda: blobs(100_000, 5),
+    'blobs-4k-10-5': {
+        'prepare': lambda: blobs(4_000, 10, 5),
+    },
+    'blobs-8k-10-5': {
+        'prepare': lambda: blobs(8_000, 10, 5),
+    },
+    'blobs-16k-10-5': {
+        'prepare': lambda: blobs(8_000, 10, 5),
+    },
+    'blobs-32k-10-5': {
+        'prepare': lambda: blobs(8_000, 10, 5),
+    },
+    'blobs-64k-10-5': {
+        'prepare': lambda: blobs(8_000, 10, 5),
+    },
+    'blobs-100k-10-5': {
+        'prepare': lambda: blobs(100_000, 10, 5),
+    },
+    'blobs-128k-10-5': {
+        'prepare': lambda: blobs(8_000, 10, 5),
     },
 }
 
