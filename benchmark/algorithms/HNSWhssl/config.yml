@@ -1,0 +1,4 @@
+docker-image: dbscan-benchmarks-HNSWhssl
+module: HNSWhssl
+constructor: HNSWSingleLinkage
+name: HNSWhssl
