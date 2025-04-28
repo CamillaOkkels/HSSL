@@ -37,7 +37,7 @@ def store_results(dataset_name: str, algorithm: str,
         for k, v in attrs.items():
             print(k, v)
             f.attrs[k] = v
-        f.create_dataset("children", data=children )
+        f.create_dataset("dendrogram", data=children )
     
 
 

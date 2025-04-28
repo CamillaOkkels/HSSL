@@ -235,19 +235,19 @@ DATASETS = {
         'prepare': lambda: blobs(8_000, 10, 5),
     },
     'blobs-16k-10-5': {
-        'prepare': lambda: blobs(8_000, 10, 5),
+        'prepare': lambda: blobs(16_000, 10, 5),
     },
     'blobs-32k-10-5': {
-        'prepare': lambda: blobs(8_000, 10, 5),
+        'prepare': lambda: blobs(32_000, 10, 5),
     },
     'blobs-64k-10-5': {
-        'prepare': lambda: blobs(8_000, 10, 5),
+        'prepare': lambda: blobs(64_000, 10, 5),
     },
     'blobs-100k-10-5': {
         'prepare': lambda: blobs(100_000, 10, 5),
     },
     'blobs-128k-10-5': {
-        'prepare': lambda: blobs(8_000, 10, 5),
+        'prepare': lambda: blobs(128_000, 10, 5),
     },
 }
 

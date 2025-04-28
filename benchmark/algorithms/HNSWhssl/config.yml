@@ -2,3 +2,7 @@ docker-image: dbscan-benchmarks-HNSWhssl
 module: HNSWhssl
 constructor: HNSWSingleLinkage
 name: HNSWhssl
+args:
+  - [20] # searcher heap size
+  - [100] # max build heap size
+  - [20] # M max degree

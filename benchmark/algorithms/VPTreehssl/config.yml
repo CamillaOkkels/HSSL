@@ -1,0 +1,4 @@
+docker-image: dbscan-benchmarks-VPTreehssl
+module: VPTreehssl
+constructor: VPTreeSingleLinkage
+name: VPTreehssl
