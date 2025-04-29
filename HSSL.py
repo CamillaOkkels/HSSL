@@ -409,6 +409,7 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
 
     dendrogram = []
 
+
     graphs = gib.PyHNSW(data, **hnsw_kwargs)
 
     U = DisjointSet(np.arange(len(data)))

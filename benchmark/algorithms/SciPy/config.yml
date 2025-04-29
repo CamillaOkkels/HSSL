@@ -1,0 +1,4 @@
+docker-image: dbscan-benchmarks-scipy
+module: scipy
+constructor: SciPySingleLinkage
+name: scipy

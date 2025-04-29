@@ -1,5 +1,6 @@
 from benchmark.algorithms.base.module import BaseClustering
 from HSSL import *
+import json
 
 class HNSWSingleLinkage(BaseClustering):
     def __init__(self, ef, max_build_heap_size, max_degree):
@@ -17,7 +18,12 @@ class HNSWSingleLinkage(BaseClustering):
         return self.dendrogram
     
     def __str__(self):
-        return f"HNSWHierarcihcalSingleLinkage()"
+        return json.dumps(dict(
+            ef=self.ef,
+            ef_construct=self.max_build_heap_size,
+            M=self.max_degree
+        ))
+        return f"HNSW_HSSL(ef={self.ef}, ef_construct={self.max_build_heap_size}, M={self.max_degree})"
 
     def __repr__(self):
         return f"{self.ef}_{self.max_build_heap_size}_{self.max_degree}"

@@ -100,9 +100,10 @@ def compute_groundtruth(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     print(f"Computing groundtruth took {(end - start):.2f}s.")
     return clustering.retrieve_dendrogram()
 
-def write_output(X: np.ndarray, name: str, compute_gt=True):
+def write_output(X: np.ndarray, name: str, compute_gt=True, y=None):
     f = h5py.File(get_dataset_fn(name), "w")
     f.create_dataset("data", data=X)
+    if y is not None: f.create_dataset("labels", data=y)
     if compute_gt:
         dendrogram = compute_groundtruth(X)
         f.create_dataset("dendrogram", data=dendrogram)
@@ -190,18 +191,31 @@ def celeba():
     write_output(X, "celeba")
 
 
-def blobs(n, dim, centers):
+def blobs(n, dim, centers, seed=42, n_noise=None):
     from sklearn.datasets import make_blobs
     from sklearn.preprocessing import StandardScaler
 
     name = f"blobs-{n // 1000}k-{dim}-{centers}"
+    if n_noise is not None: name = f"{name}-noise-{n_noise}"
+    print(n_noise, name)
 
     if os.path.exists(get_dataset_fn(name)):
         return
 
-    X = make_blobs(n, dim, centers=centers, random_state=42)[0].astype(np.float32)
+    X,y = make_blobs(n, dim, centers=centers, random_state=seed)
+    X = X.astype(np.float32)
+    if n_noise is not None: X, y = add_noise(X, n_noise, y=y)
+    write_output(np.array(X), name, y=y)
 
-    write_output(np.array(X), name)   
+def add_noise(X, n_noise, y=None):
+    lo, hi = np.min(X,axis=0), np.max(X,axis=0)
+    noise = np.random.sample((n_noise, X.shape[1])) * (hi-lo) + lo
+    X_noised = np.concatenate([X, noise], axis=0)
+    if y is None:
+        return X_noised
+    y_noised = np.concatenate([y, np.full(noise.shape[0],-1)])
+    return X_noised, y_noised
+
 
 DATASETS = {
     'mnist': {
