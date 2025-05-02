@@ -6,7 +6,7 @@ import h5py
 import os
 import time
 import numpy as np
-import zipfile, sklearn
+import zipfile
 
 
 from typing import Dict, Tuple
@@ -90,11 +90,11 @@ def get_dataset(dataset_name: str, path: str = ".") -> h5py.File:
     return hdf5_file
 
 def compute_groundtruth(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    from benchmark.algorithms.sklearn.module import SKLearnSingleLinkage
+    from benchmark.algorithms.scipy.module import SciPySingleLinkage
     print("Computing groundtruth...")
     start = time.time()
     d = X.shape[1]
-    clustering = SKLearnSingleLinkage()
+    clustering = SciPySingleLinkage()
     clustering.cluster(X)
     end = time.time()
     print(f"Computing groundtruth took {(end - start):.2f}s.")
@@ -109,15 +109,40 @@ def write_output(X: np.ndarray, name: str, compute_gt=True, y=None):
         f.create_dataset("dendrogram", data=dendrogram)
     f.close()
 
-def mnist():
+def monotonic_multisample(X, sample_sizes, seed=None):
+    for sample_size in sample_sizes:
+        if X.shape[0] < sample_size:
+            print(f"Warning: Sample size ({sample_size}) should be less than the number of samples in X ({X.shape[0]}), using X.shape[0] instead.")
+    if seed is None:
+        perm = np.random.permutation(X.shape[0])
+    else:
+        perm = np.random.default_rng(seed=seed).permutation(X.shape[0])
+    return [
+        X[perm[:sample_size]]
+        for sample_size in sample_sizes
+    ]
+def sample(X, sample_size, seed=None):
+    return monotonic_multisample(X, sample_sizes=[sample_size], seed=seed)[0]
+
+def mnist(sample_size=None, seed=None):
     from sklearn.datasets import fetch_openml
-    if os.path.exists(get_dataset_fn("mnist")):
+    
+    if sample_size is not None:
+        name = f"mnist-{sample_size//1_000}k"
+    else:
+        name = "mnist"
+    
+    if os.path.exists(get_dataset_fn(name)):    
         return
+    
     X,_ = fetch_openml("mnist_784", version=1, return_X_y=True, as_frame=False, parser='liac-arff')
     X = X.astype(np.float32)
     X /= np.sum(X, axis=1, keepdims=True)
+    
+    if sample_size is None: sample_size = X.shape[0]
+    X = sample(X, sample_size, seed=seed)
 
-    write_output(X, "mnist")
+    write_output(X, name)
 
 
 def pamap2(apply_pca=False):
@@ -166,13 +191,26 @@ def household():
         X = np.array(cnt,dtype=np.float32)
         write_output(X, "household")
 
-def aloi():
-    if os.path.exists(get_dataset_fn("aloi")):
+
+def aloi(sample_size=None, seed=None):
+    from sklearn.datasets import fetch_openml
+    
+    if sample_size is not None:
+        name = f"aloi-{sample_size//1_000}k"
+    else:
+        name = "aloi"
+    
+    if os.path.exists(get_dataset_fn(name)):    
         return
+    
     src = "https://github.com/Minqi824/ADBench/raw/main/adbench/datasets/Classical/1_ALOI.npz"
     download(src, "aloi.npz")
     X = np.load("aloi.npz")['X']
-    write_output(X, "aloi")
+    
+    if sample_size is None: sample_size = X.shape[0]
+    X = sample(X, sample_size, seed=seed)
+
+    write_output(X, name)
 
 def census():
     if os.path.exists(get_dataset_fn("census")):
@@ -218,50 +256,35 @@ def add_noise(X, n_noise, y=None):
 
 
 DATASETS = {
-    'mnist': {
-        'prepare': mnist,
-    }, 
+    **{
+        f'mnist-{i}k': {
+            'prepare': (lambda i: (lambda: mnist(i*1_000, seed=0)))(i),
+        }
+        for i in (1+np.arange(7))*10
+    },
+    **{
+        f'aloi-{i}k': {
+            'prepare': (lambda i: (lambda: aloi(i*1_000, seed=0)))(i),
+        }
+        for i in (1+np.arange(5))*10
+    },
     'pamap2': {
         'prepare': lambda: pamap2(True),
     },
     'pamap2-full': {
         'prepare': lambda: pamap2(False),
     },
-    'household': {
-        'prepare': household,
+    **{
+        f.__name__: {'prepare': f}
+        for f in [mnist, aloi, household, census, celeba]
     },
-    'aloi': {
-        'prepare': aloi,
-    },
-    'census': {
-        'prepare': census,
-    },
-    'celeba': {
-        'prepare': celeba,
-    },
-    'blobs-2k-10-5': {
-        'prepare': lambda: blobs(2_000, 10, 5),
-    },
-    'blobs-4k-10-5': {
-        'prepare': lambda: blobs(4_000, 10, 5),
-    },
-    'blobs-8k-10-5': {
-        'prepare': lambda: blobs(8_000, 10, 5),
-    },
-    'blobs-16k-10-5': {
-        'prepare': lambda: blobs(16_000, 10, 5),
-    },
-    'blobs-32k-10-5': {
-        'prepare': lambda: blobs(32_000, 10, 5),
-    },
-    'blobs-64k-10-5': {
-        'prepare': lambda: blobs(64_000, 10, 5),
-    },
-    'blobs-100k-10-5': {
-        'prepare': lambda: blobs(100_000, 10, 5),
-    },
-    'blobs-128k-10-5': {
-        'prepare': lambda: blobs(128_000, 10, 5),
+    **{
+        f'blobs-{i}k-{dim}-{centers}': {
+            'prepare': (lambda i, dim, centers: (lambda: blobs(i*1_000, dim, centers)))(i, dim, centers),
+        }
+        for i in [2, 4, 8, 16, 32, 64, 100, 128]
+        for dim in [10]
+        for centers in [5, 20, 50]
     },
 }
 

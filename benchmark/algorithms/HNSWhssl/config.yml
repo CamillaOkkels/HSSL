@@ -4,5 +4,5 @@ constructor: HNSWSingleLinkage
 name: HNSWhssl
 args:
   - [20] # searcher heap size
-  - [25, 50, 100, 200] # max build heap size
-  - [5, 10, 20, 40] # M max degree
+  - [200] # max build heap size
+  - [20, 40] # M max degree
