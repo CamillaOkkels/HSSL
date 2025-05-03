@@ -235,7 +235,6 @@ def blobs(n, dim, centers, seed=42, n_noise=None):
 
     name = f"blobs-{n // 1000}k-{dim}-{centers}"
     if n_noise is not None: name = f"{name}-noise-{n_noise}"
-    print(n_noise, name)
 
     if os.path.exists(get_dataset_fn(name)):
         return
