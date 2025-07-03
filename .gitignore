@@ -15,7 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
-lib64/
+*lib64
 parts/
 sdist/
 var/
@@ -31,7 +31,10 @@ GraphIndexBaselines
 local_py
 local
 tmp
+share
+bin
 *.npz
+*.cfg
 
 # TODO: Do not ignore them for publication, but in the meantime
 data
