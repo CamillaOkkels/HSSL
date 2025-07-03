@@ -2,3 +2,6 @@ docker-image: dbscan-benchmarks-VPTreehssl
 module: VPTreehssl
 constructor: VPTreeSingleLinkage
 name: VPTreehssl
+args:
+  - [1] # # n_trees 1, 3, 7, 20
+  - [0.25] # [] # clean_fraction 0.25, 0.5, 1., 2., 4.

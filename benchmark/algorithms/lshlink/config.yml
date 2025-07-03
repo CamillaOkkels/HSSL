@@ -1,0 +1,8 @@
+docker-image: dbscan-benchmarks-lshlink
+module: lshlink
+constructor: LSHSingleLinkage
+name: lshlink
+args:
+  - [1.1] # A (float): Increase ratio for r (must be > 1)
+  - [5] # l (int): number of hash functions to compute
+  - [25] # k (int): number of bits to sample from each hash point

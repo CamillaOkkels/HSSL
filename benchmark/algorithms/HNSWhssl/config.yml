@@ -3,6 +3,6 @@ module: HNSWhssl
 constructor: HNSWSingleLinkage
 name: HNSWhssl
 args:
-  - [20] # searcher heap size
-  - [200] # max build heap size
-  - [20, 40] # M max degree
+  - [5, 11, 22, 47, 100] # ef 5, 11, 22, 47, 100
+  - [25, 42, 71, 119, 200] # max_build_heap_size 25, 42, 71, 119, 200
+  - [10, 14, 19, 26, 37, 51, 72, 100] # 5, 7, # lowest_max_degree 10, 14, 19, 26, 37, 51, 72, 100

@@ -1,8 +1,0 @@
-docker-image: dbscan-benchmarks-HNSWhdbscan
-module: HNSWhdbscan
-constructor: HNSWhdbscan
-name: HNSWhdbscan
-args:
-  - [100] # minPts
-  - [25, 50, 100, 200] # max build heap size
-  - [5, 10, 20, 40] # M max degree

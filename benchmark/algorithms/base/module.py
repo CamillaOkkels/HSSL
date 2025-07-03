@@ -13,3 +13,6 @@ class BaseClustering:
     def get_additional(self):
         """Returns a dictionary of key-values pairs with additional benchmarking information """
         return {}
+
+    def get_overhead_time(self):
+        return 0

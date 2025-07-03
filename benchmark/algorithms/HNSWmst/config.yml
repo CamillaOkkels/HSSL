@@ -1,0 +1,10 @@
+docker-image: dbscan-benchmarks-HNSWmst
+module: HNSWmst
+constructor: HNSWmst
+name: HNSWmst
+args:
+  - [1] # minPts
+  - [False, True] # symmetric_expand False, True
+  - [25, 42, 71, 119, 200] # max_build_heap_size 25, 42, 71, 119, 200
+  - [10, 14, 19, 26, 37, 51, 72, 100] # lowest_max_degree 10, 14, 19, 26, 37, 51, 72, 100
+  # - [5, 7, 26, 37, 51, 72, 100] # lowest_max_degree
