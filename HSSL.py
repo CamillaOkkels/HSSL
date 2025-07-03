@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 # import copy
 import graphidxbaselines as gib
 import plotly.graph_objects as go
-import numpy as np
 import h5py
+import time
 from scipy.cluster.hierarchy import DisjointSet
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from local_py.VPTree import VPTree
 from local_py.heaps import MinPrioQueue
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 from more_itertools import peekable
 # import torch
 # assert torch.cuda.is_available()
@@ -196,6 +197,29 @@ def plotly_dendrogram(dendrogram, prerender=True, min_size=1, line_width=1, widt
         from PIL import Image
         from IPython.display import display
         display(Image.fromarray((255*image.T[::-1]).astype('uint8'), 'L'))
+def prune_to_first_npts(dendrogram, npts):
+    N = len(dendrogram)+1
+    new_dendrogram = []
+    # Remap points to a proper cluster index or -1
+    index_remap = np.arange(2*N)
+    index_remap[npts:N] = -1
+    for i_in, (left_child, right_child, distance, size) in enumerate(dendrogram):
+        left_child, right_child = int(left_child), int(right_child)
+        # Use the remapping
+        left_child = index_remap[left_child]
+        right_child = index_remap[right_child]
+        if left_child < 0 and right_child < 0: index_remap[i_in+N] = -1
+        elif left_child < 0: index_remap[i_in+N] = right_child
+        elif right_child < 0: index_remap[i_in+N] = left_child
+        else:
+            index_remap[i_in+N] = npts + len(new_dendrogram)
+            left_size = 1 if left_child < npts else new_dendrogram[left_child-npts][3]
+            right_size = 1 if right_child < npts else new_dendrogram[right_child-npts][3]
+            new_size = left_size + right_size
+            new_dendrogram.append([left_child, right_child, distance, new_size])
+    assert len(new_dendrogram) == npts-1, f"Dendrogram is too short. It should be {npts-1} but is {len(new_dendrogram)}."
+    assert new_dendrogram[-1][3] == npts, f"Last merge should have size {npts} but is {new_dendrogram[-1][3]}."
+    return new_dendrogram
 
 # %% ##### Searchers #####
 class PrioritySearcher:
@@ -403,12 +427,24 @@ def HSSL_Turbo(data, n_trees=1, cuda=False, clean_fraction=2, **vp_kwargs):
     return dendrogram
 ##### HNSW HSSL #####
 def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
+    
     M = []
     N = len(data)
     P = []
+    
+    start_time = time.time()
+    total_merges = N - 1
+    milestones = {
+        int(total_merges * 0.25): None,
+        int(total_merges * 0.5): None,
+        int(total_merges * 0.75): None,
+        int(total_merges * 0.8): None,
+        int(total_merges * 0.9): None,
+        int(total_merges * 0.95): None,
+        int(total_merges * 0.99): None,
+    }
 
     dendrogram = []
-
 
     graphs = gib.PyHNSW(data, **hnsw_kwargs)
 
@@ -423,9 +459,15 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
         dist, _ = P[i][1].peek()
         heapq.heappush(M, (dist, i))
 
+
+
     with tqdm(total=N-1,desc="Merging clusters") as pbar:
 
         while U.n_subsets != 1:
+            
+            if len(M) == 0:
+                print(f"{N-1-len(dendrogram)} merges missing") #, returning intermediate result")
+                # return dendrogram
             
             d, i = heapq.heappop(M)
             try:
@@ -445,6 +487,15 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
                         cluster_id_counter += 1
                         pbar.update(1)
                         pbar.refresh()
+                        
+                        if len(dendrogram) in milestones and milestones[len(dendrogram)] is None:
+                            elapsed = time.time() - start_time
+                            milestones[len(dendrogram)] = elapsed
+                            print(f"Reached {int((len(dendrogram)/total_merges)*100)}% in {elapsed:.2f} seconds")
+                            print(d)
+                            # print(data[i], data[j])
+                            print(np.linalg.norm(data[np.random.choice(len(data))] - data[np.random.choice(np.random.choice(len(data)))]))
+                            
                         if U.n_subsets == 1: break
                         
             except StopIteration: pass
@@ -454,5 +505,64 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
                 heapq.heappush(M, (dist, i))
             except StopIteration: pass
 
-    assert len(dendrogram) == N-1
-    return dendrogram
+    assert len(dendrogram) == total_merges
+    return dendrogram, milestones
+
+# %% #### Clustering quality analysis
+def find_cut(dendrogram):
+	# https://github.com/sharpenb/Hierarchical-Paris-Clustering/
+	from python_paris.homogeneous_cut_slicer import best_homogeneous_cut
+	cut_level, cut_score = best_homogeneous_cut(np.array(dendrogram))
+	# print(cut_level, cut_score)
+	return len(dendrogram) + 1 - cut_level
+def get_clustering_from_dendrogram(dendrogram, k, min_cluster_size=None):
+    if min_cluster_size is None: min_cluster_size = 10
+    # roundup_fix_dendrogram(dendrogram)
+    N = len(dendrogram) + 1
+    clustering = -np.ones(N+len(dendrogram), dtype=int)
+    # Cluster ID -> merge distance order
+    merge_distance_order = np.argsort([v[2] for v in dendrogram], kind="stable")
+    # Merge distance order -> cluster ID
+    inv_distance_order = merge_distance_order.copy()
+    for i,j in enumerate(merge_distance_order): inv_distance_order[j] = i
+    # Start with last merge, i.e. Cluster ID "N-1"
+    final_clusters = set([len(dendrogram)-1])
+    # i = N-2
+    while len(final_clusters) < k and len(final_clusters) > 0:
+        # Get Cluster ID of highest available merge distance
+        i = inv_distance_order[max(merge_distance_order[v] for v in final_clusters)]
+        final_clusters.remove(i)
+        l,r = dendrogram[i][:2]
+        l_size = 1 if l<N else dendrogram[l-N][3]
+        r_size = 1 if r<N else dendrogram[r-N][3]
+        if l >= N and l_size >= min_cluster_size: final_clusters.add(l-N)
+        if r >= N and r_size >= min_cluster_size: final_clusters.add(r-N)
+    if len(final_clusters) < k: print(f"Warning: Only found {len(final_clusters)} clusters, but should find {k}.")
+    final_clusters = np.sort([*final_clusters]) + N
+    for i,c in enumerate(final_clusters): clustering[c] = i
+    for merged_index_diff, (cluster_i, cluster_j, _, _) in enumerate(reversed(dendrogram)):
+        merged_index = N + len(dendrogram) - merged_index_diff - 1
+        if merged_index > final_clusters[-1]: continue
+        clustering[[cluster_i, cluster_j]] = clustering[merged_index]
+    # print(np.unique(clustering[:N],return_counts=True))
+    return clustering[:N]
+# clustering = get_clustering_from_dendrogram(dendrogram, 5, 5)
+# print(np.unique(clustering, return_counts=True))
+# clustering
+def ARI_score(dendro1, dendro2, min_cluster_size=None, k_override=None): 
+        
+        dendro1 = [[int(l), int(r), float(d), int(s)] for l, r, d, s in dendro1]
+        dendro2 = [[int(l), int(r), float(d), int(s)] for l, r, d, s in dendro2]
+
+        dendro1 = elki_sort_dendrogram(dendro1)
+        dendro2 = elki_sort_dendrogram(dendro2)
+        
+        if k_override is None: k = find_cut(dendro1)
+        else: k = k_override
+
+        C1 = get_clustering_from_dendrogram(dendro1, k, min_cluster_size=min_cluster_size)
+        C2 = get_clustering_from_dendrogram(dendro2, k, min_cluster_size=min_cluster_size)
+
+        return adjusted_rand_score(C1, C2)
+
+# %%
