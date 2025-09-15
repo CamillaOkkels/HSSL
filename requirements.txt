@@ -1,4 +1,0 @@
-h5py==3.8.0
-scikit-learn==1.2.1
-pyyaml
-numpy==1.26.4
