@@ -1,4 +1,0 @@
-docker-image: dbscan-benchmarks-VPTreeJava
-module: VPTreeJava
-constructor: VPTreeJavaSingleLinkage
-name: VPTreeJava
