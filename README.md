@@ -1,5 +1,6 @@
 This repository contains the code for the HNSWhssl, HNSWkruskal and HNSWmst algorithms presented in the paper [link]
 
+# How To
 ## Installation
 
 Assuming Rust and python are installed, the rust files can be compiled as follows:
