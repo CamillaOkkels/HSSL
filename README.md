@@ -3,7 +3,7 @@ This repository contains the code for the HNSWhssl, HNSWkruskal and HNSWmst algo
 ## Installation
 
 Assuming Rust and python are installed, the rust files can be compiled as follows:
-- navigate to the HNSWhsslRust folder.
+- Navigate to the HNSWhsslRust folder.
 - In the terminal, run:
 
 ```bash
