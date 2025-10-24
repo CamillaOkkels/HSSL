@@ -3,7 +3,7 @@ This repository contains the code for the HNSWhssl, HNSWkruskal and HNSWmst algo
 > Camilla Birch Okkels, Erik Thordsen, Martin Aumüller, Arthur Zimek and Erich Schubert:
 Approximate Single-Linkage Clustering Using Graph-based Indexes: MST-based Approaches and Incremental Searchers. SISAP 2025
 
-The evaluation framework can be found at [singleLinkage-benchmark](https://github.com/CamillaOkkels/singleLinkage-benchmark/tree/main)
+The benchmark framework can be found at [singleLinkage-benchmark](https://github.com/CamillaOkkels/singleLinkage-benchmark/tree/main)
 
 # How To
 ## Installation
