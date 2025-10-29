@@ -153,7 +153,16 @@ impl<R: UnsignedInteger, F: Float> ViewableWeightedAdjGraph<R,F> for HNSWHeapBui
 	}
 }
 
-
+/* // Added section
+impl<R: SyncUnsignedInteger, F: SyncFloat> Clone for HNSWHeapBuildGraph<R, F> {
+    fn clone(&self) -> Self {
+        Self {
+            adjacency: self.adjacency.clone(), // adjacency must implement Clone
+            n_edges: self.n_edges,
+        }
+    }
+}
+*/
 
 #[inline(always)]
 fn make_greedy_index<
@@ -1560,6 +1569,100 @@ impl<R: SyncUnsignedInteger, F: SyncFloat, Dist: Distance<F>+Sync+Send> HNSWPara
 			});
 		}
 	}
+	
+	/*
+	// Attempt at search function
+	pub fn search_from_point<M: MatrixDataSource<F> + Sync>(
+        &self,
+        mat: &M,
+        query_idx: usize,
+        entry_idx: usize,
+        ef: usize,
+    ) -> usize {
+        debug_assert!(query_idx < self.n_data);
+        debug_assert!(entry_idx < self.n_data);
+
+        // Shortcut
+        if entry_idx == query_idx {
+            return entry_idx;
+        }
+
+        let dist_fun = |a: usize, b: usize| -> F {
+            let a_row = mat.get_row_view(a);
+            let b_row = mat.get_row_view(b);
+            self._dist.dist_slice(&a_row, &b_row)
+        };
+
+        // Determine highest layer where entry_idx exists
+        let mut current_layer = self.n_layers - 1;
+        while current_layer > 0 {
+            let layer_ids = &self.global_layer_ids[current_layer - 1];
+            if layer_ids.contains(&R::from_usize(entry_idx).unwrap_unchecked()) {
+                break;
+            }
+            current_layer -= 1;
+        }
+
+        let mut best_idx = entry_idx;
+        let mut best_dist = dist_fun(query_idx, entry_idx);
+        let mut entry = entry_idx;
+
+        // Descend layers greedily
+        while current_layer > 0 {
+            let layer_graph = &self.graphs[current_layer];
+            let local_ids = &self.local_layer_ids[current_layer - 1];
+            let entry_local = local_ids[entry];
+
+            let mut changed = true;
+            while changed {
+                changed = false;
+                for &(_, neigh_r) in layer_graph.view_neighbors_heap(R::from_usize(entry_local).unwrap_unchecked()).iter() {
+                    let neigh = self.global_layer_ids[current_layer - 1][neigh_r.to_usize().unwrap_unchecked()].to_usize().unwrap_unchecked();
+                    let d = dist_fun(query_idx, neigh);
+                    if d < best_dist {
+                        best_dist = d;
+                        best_idx = neigh;
+                        entry = neigh;
+                        changed = true;
+                    }
+                }
+            }
+
+            // Go down one layer
+            current_layer -= 1;
+        }
+
+        // Layer 0: full ef search
+        let mut heap: BinaryHeap<Reverse<(OrderedFloat<f64>, usize)>> = BinaryHeap::new();
+        let mut visited: HashSet<usize> = HashSet::with_capacity(ef.min(self.n_data));
+
+        heap.push(Reverse((OrderedFloat(best_dist.to_f64().unwrap()), best_idx)));
+        visited.insert(best_idx);
+
+        let base_graph = &self.graphs[0];
+
+        while let Some(Reverse((OrderedFloat(_), node))) = heap.pop() {
+            for &(_, neigh_r) in base_graph.view_neighbors_heap(R::from_usize(node).unwrap_unchecked()).iter() {
+                let neigh = neigh_r.to_usize().unwrap_unchecked();
+                if visited.contains(&neigh) {
+                    continue;
+                }
+                visited.insert(neigh);
+                let d = dist_fun(query_idx, neigh);
+                if d < best_dist {
+                    best_dist = d;
+                    best_idx = neigh;
+                }
+                heap.push(Reverse((OrderedFloat(d.to_f64().unwrap()), neigh)));
+                if visited.len() >= ef { break; }
+            }
+            if visited.len() >= ef { break; }
+        }
+
+        best_idx
+    } */
+
+
 	#[allow(unused)]
 	fn heuristic_post_prune<M: MatrixDataSource<F>+Sync>(&mut self, mat: &M) {
 		let (n_data, max_cos, dist_is_sq) = (self.n_data, F::from(0.55).unwrap(), true);
