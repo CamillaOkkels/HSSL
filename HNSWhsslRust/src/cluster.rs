@@ -277,12 +277,12 @@ pub fn graph_based_dendrogram<
     let milestone_steps = [0.25, 0.5, 0.75, 0.8, 0.9, 0.95, 0.99].map(|p| ((n - 1) as f64 * p).round() as usize);
     let mut milestones = Vec::with_capacity(milestone_steps.len());
 
-    /* Build HNSW on the data and get the graphs 
+    // Build HNSW on the data and get the graphs 
     println!("Starting building graph");
     let hnsw = HNSWParallelHeapBuilder::<R,_,_>::base_init(data, dist, hnsw_params);
     println!("Finished building graph");
 
-
+    /* 
     let (connected, components) = is_connected_hnsw_full(&hnsw);
     println!("Graph is connected: {}", connected);
     // for (idx, comp) in components.iter().enumerate() {
