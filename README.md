@@ -23,7 +23,7 @@ The repo is build on the framework from:
 
 Likewise the code in heaps.py is provided by Erik Thordsen
 
-And uses functionalities from: 
+The code in this repo uses functionalities from:
 >  [GraphIndexAPI](https://github.com/eth42/GraphIndexAPI)
 
 Please ensure this repo is downloaded to the same directory in order for all dependencies to work proporly.
