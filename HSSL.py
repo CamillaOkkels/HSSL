@@ -9,10 +9,9 @@ import h5py
 import time
 from scipy.cluster.hierarchy import DisjointSet
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-from local_py.VPTree import VPTree
-from local_py.heaps import MinPrioQueue
 from tqdm.auto import tqdm
 from more_itertools import peekable
+from heaps import MinPrioQueue
 # import torch
 # assert torch.cuda.is_available()
 # print(f"Using GPU '{torch.cuda.get_device_name(0)}'")
@@ -300,132 +299,6 @@ class PrioritySearcher_HNSW:
 		while len(self.candidate_queue) > 0:
 			yield self.candidate_queue.pop()
 
-# %% ##### HSSL-VPTrees Turbo #####
-def HSSL_Turbo(data, n_trees=1, cuda=False, clean_fraction=2, **vp_kwargs):
-    if cuda:
-        raise ValueError("Cuda currently not supported")
-        data_tensor = torch.Tensor(data).to("cuda:0")
-        def batch_dists(i, js):
-            return torch.cdist(
-                data_tensor[js],
-                data_tensor[data[i:i+1]],
-            ).cpu().numpy().flatten()
-    else:
-        def batch_dists(i, js):
-            return np.linalg.norm(data[js] - data[i], axis=1)
-    M = []
-    N = len(data)
-    P = []
-    H = [[] for _ in range(N)]
-
-    dendrogram = []
-
-    vp_kwargs["store_data"] = False
-    trees = [VPTree(data, **vp_kwargs) for _ in range(n_trees)]
-
-    U = DisjointSet(np.arange(len(data)))
-    cluster_id_map = np.arange(N)
-    cluster_id_counter = N
-    cluster_uncleaned_num = np.zeros(N)
-    cleaning_cycles = 0
-
-    for i in tqdm(range(N), desc="Initializing"):
-        searcher = PrioritySearcher(trees[np.random.randint(n_trees)], data[i])
-        P.append((searcher, searcher.advance_gen()))
-        
-        if 0: # Old version
-            while len(H[i]) == 0 or H[i][0][0] > P[i][0].lower_bound():
-                j = P[i][1].__next__()
-                if j != i:
-                    heapq.heappush(H[i], (np.linalg.norm(data[i] - data[j]), j))
-        else: # New version
-            while len(H[i]) == 0 or H[i][0][0] > P[i][0].lower_bound():
-                old_lower_bound = P[i][0].lower_bound()
-                js = []
-                while P[i][0].lower_bound() == old_lower_bound:
-                    j = P[i][1].__next__()
-                    if j != i: js.append(j)
-                for j, jdist in zip(js, batch_dists(i,js)):
-                    heapq.heappush(H[i], (jdist, j))
-        
-        heapq.heappush(M, (H[i][0][0], i))
-
-    with tqdm(total=N-1, desc="Merging clusters") as pbar:
-
-        while U.n_subsets != 1:
-            d, i = heapq.heappop(M)
-            if len(H[i]) > 0:
-                # print(d, i, "if")
-                d2, j = heapq.heappop(H[i])
-                if d == d2:
-                    if not U.connected(i, j):
-                        if U.n_subsets > 2: # Maybe remove all elements from the heaps within the same cluster
-                            size_i = U.subset_size(i)
-                            size_j = U.subset_size(j)
-                            uncleaned_total_i = cluster_uncleaned_num[i] + size_j
-                            uncleaned_total_j = cluster_uncleaned_num[j] + size_i
-                            new_uncleaned_total = 0
-                            cluster_reps = [U[i], U[j]]
-                            for v, uncleaned_total, size in [[i, uncleaned_total_i, size_i], [j, uncleaned_total_j, size_j]]:
-                                if uncleaned_total / size > clean_fraction:
-                                    for k in U.subset(v):
-                                        offset = 0
-                                        length = len(H[k])
-                                        while offset < length:
-                                            if U[H[k][offset][1]] in cluster_reps:
-                                                # Swap element in the same cluster to the back
-                                                H[k][offset], H[k][length-1] = H[k][length-1], H[k][offset]
-                                                # Remove it
-                                                H[k].pop()
-                                                length -= 1
-                                            else:
-                                                offset += 1
-                                        heapq.heapify(H[k])
-                                    cluster_uncleaned_num[U[v]] = 0
-                                    cleaning_cycles += 1
-                                    pbar.desc = f"Merging clusters ({cleaning_cycles})"
-                                    uncleaned_total = 0
-                                new_uncleaned_total = max(new_uncleaned_total, uncleaned_total)
-
-                        # add (d, i, j) to the dendrogram
-                        dendrogram.append((
-                            cluster_id_map[U[i]],
-                            cluster_id_map[U[j]],
-                            d,
-                            U.subset_size(i) + U.subset_size(j),
-                        ))
-                        U.merge(i, j)
-                        cluster_id_map[U[i]] = cluster_id_counter
-                        cluster_id_counter += 1
-                        cluster_uncleaned_num[U[i]] = new_uncleaned_total
-                        pbar.update(1)
-                        pbar.refresh()
-                        if U.n_subsets == 1: break
-
-            if 0: # Old version
-                while len(H[i])==0 or H[i][0][0] > P[i][0].lower_bound():
-                    try: j = P[i][1].__next__()
-                    except StopIteration: break
-                    if not U.connected(j, i):
-                        heapq.heappush(H[i], (np.linalg.norm(data[i] - data[j]), j))
-                    # P[i].advance()
-            else: # New version
-                # print(d, i, "else")
-                rep_i = U[i]
-                while len(H[i])==0 or H[i][0][0] > P[i][0].lower_bound():
-                    old_lower_bound = P[i][0].lower_bound()
-                    if np.isinf(old_lower_bound): break
-                    js = []
-                    while P[i][0].lower_bound() == old_lower_bound:
-                        try: j = P[i][1].__next__()
-                        except StopIteration: break
-                        if j != i and U[j] != rep_i: js.append(j)
-                    for j, jdist in zip(js, batch_dists(i,js)):
-                        heapq.heappush(H[i], (jdist, j))
-        
-            if len(H[i]) > 0: heapq.heappush(M, (H[i][0][0], i))
-    assert len(dendrogram) == N-1
-    return dendrogram
 ##### HNSW HSSL #####
 def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
     
@@ -461,87 +334,13 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
         heapq.heappush(M, (dist, i))
 
 
-    with tqdm(total=N-1,desc="Merging clusters") as pbar:
+    with tqdm(total=N-1, desc="Merging clusters") as pbar:
 
         while U.n_subsets != 1:
             
             # if len(M) == 0:
             #     print(f"{N-1-len(dendrogram)} merges missing") #, returning intermediate result")
             #     # return dendrogram
-            
-            d, i = heapq.heappop(M)
-            try:
-                d2, j = P[i][1].__next__()
-                if d == d2:
-                    if not U.connected(i, j):
-
-                        # add (d, i, j) to the dendrogram
-                        dendrogram.append((
-                            cluster_id_map[U[i]],
-                            cluster_id_map[U[j]],
-                            d,
-                            U.subset_size(i) + U.subset_size(j),
-                        ))
-                        U.merge(i, j)
-                        cluster_id_map[U[i]] = cluster_id_counter
-                        cluster_id_counter += 1
-                        pbar.update(1)
-                        pbar.refresh()
-                        
-                        if len(dendrogram) in milestones and milestones[len(dendrogram)] is None:
-                            elapsed = time.time() - start_time
-                            milestones[len(dendrogram)] = elapsed
-                            print(f"Reached {int((len(dendrogram)/total_merges)*100)}% in {elapsed:.2f} seconds")
-                            
-                        if U.n_subsets == 1: break
-                        
-            except StopIteration: pass
-
-            try:
-                dist, _ = P[i][1].peek()
-                heapq.heappush(M, (dist, i))
-            except StopIteration: pass
-
-    assert len(dendrogram) == total_merges
-    return dendrogram, milestones
-def HNSW_HSSL_robust(data, ef=20, **hnsw_kwargs):
-    
-    M = []
-    N = len(data)
-    P = []
-    
-    start_time = time.time()
-    total_merges = N - 1
-    milestones = {
-        int(total_merges * 0.25): None,
-        int(total_merges * 0.5): None,
-        int(total_merges * 0.75): None,
-        int(total_merges * 0.8): None,
-        int(total_merges * 0.9): None,
-        int(total_merges * 0.95): None,
-        int(total_merges * 0.99): None,
-    }
-
-    dendrogram = []
-
-    graphs = gib.PyHNSW(data, **hnsw_kwargs)
-
-    U = DisjointSet(np.arange(len(data)))
-    cluster_id_map = np.arange(N)
-    cluster_id_counter = N
-
-    for i in tqdm(range(N), desc="Initializing"):
-        searcher = PrioritySearcher_HNSW(data, graphs, U, i, ef=ef)
-        P.append((searcher, peekable(searcher.advance_gen())))
-        
-        dist, _ = P[i][1].peek()
-        heapq.heappush(M, (dist, i))
-
-
-    with tqdm(total=N-1,desc="Merging clusters") as pbar:
-
-        while U.n_subsets != 1:
-            
             
             d, i = heapq.heappop(M)
             try:
