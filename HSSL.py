@@ -2,7 +2,8 @@ import numpy as np
 import heapq
 import matplotlib.pyplot as plt
 # import copy
-import graphidxbaselines as gib
+# import graphidxbaselines as gib
+import hnswhsslrust as hrr
 import plotly.graph_objects as go
 import h5py
 import time
@@ -446,7 +447,7 @@ def HNSW_HSSL(data, ef=20, **hnsw_kwargs):
 
     dendrogram = []
 
-    graphs = gib.PyHNSW(data, **hnsw_kwargs)
+    graphs = hrr.PyHNSW(data, **hnsw_kwargs)
 
     U = DisjointSet(np.arange(len(data)))
     cluster_id_map = np.arange(N)
