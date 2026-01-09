@@ -248,36 +248,7 @@ fn is_connected_hnsw_full<R: SyncUnsignedInteger, F: SyncFloat>(
 
 	(is_connected, components)
 }
- /*
-fn pick_random_component_and_other(
-	components: &Vec<Vec<usize>>,
-) -> Option<(usize, usize, usize, usize)> {
-	let mut rng = rand::thread_rng();
 
-	if components.len() < 2 {
-		return None; // Need at least two components
-	}
-
-	// Pick a random component
-	let c1_idx = rng.gen_range(0..components.len());
-	let c1 = &components[c1_idx];
-	if c1.is_empty() {
-		return None;
-	}
-
-	// Pick a random point from that component
-	let p1 = c1[rng.gen_range(0..c1.len())];
-
-	// Pick another component index (from remaining ones)
-	let other_indices: Vec<usize> =
-		(0..components.len()).filter(|&i| i != c1_idx).collect();
-	let c2_idx = other_indices[rng.gen_range(0..other_indices.len())];
-
-	let c2 = &components[c2_idx];
-	let p2 = c2[rng.gen_range(0..c2.len())];
-
-	Some((c1_idx, p1, c2_idx, p2))
-} */
 
 fn random_sample_points(
     comp1: &Vec<usize>,
