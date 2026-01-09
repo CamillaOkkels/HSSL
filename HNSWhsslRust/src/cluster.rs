@@ -328,7 +328,7 @@ pub fn graph_based_dendrogram<
 
 						local_edges.push((d, (i_r.min(j_r), i_r.max(j_r))));
 					}
-					let n_keep = 5;
+					let n_keep = 20;
 					local_edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 					local_edges.truncate(n_keep);
 					local_edges
@@ -388,6 +388,16 @@ pub fn graph_based_dendrogram<
 	let mut neighbor_stacks = (0..n).map(|_| MinHeap::<F,R>::with_capacity(min_pts-1)).collect::<Vec<_>>();
 	let mut core_distances = vec![-F::one(); n];
 	let mut core_point_count = 0;
+
+	let pb = ProgressBar::new((n - 1) as u64);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({percent}%) | ETA {eta_precise}",
+        )
+        .unwrap()
+        .progress_chars("█▉▊▋▌▍▎▏ "),
+    );
+
 	/* Do the actual clustering */
 	unsafe {
 		/* Shorthand to merge two clusters */
@@ -430,13 +440,14 @@ pub fn graph_based_dendrogram<
 				if *cnt==min_pts {
 					*core_distances.get_unchecked_mut(idx_usize) = d_ij;
 					core_point_count += 1;
-					/* Get root objects */
-					let root = union_find.find(idx).to_usize().unwrap_unchecked();
+
 					/* Attempt to merge with all neighbors first */
 					let neighbor_stack = neighbor_stacks.get_unchecked_mut(idx_usize);
 					while neighbor_stack.size() > 0 {
 						let (distance, other) = neighbor_stack.pop().unwrap_unchecked();
 						if *neighbor_counts.get_unchecked(other.to_usize().unwrap_unchecked()) >= min_pts {
+							/*` Get root objects */
+							let root = union_find.find(idx).to_usize().unwrap_unchecked();
 							let other_root = union_find.find(other).to_usize().unwrap_unchecked();
 							if root != other_root {
 								merge_clusters(
@@ -446,6 +457,7 @@ pub fn graph_based_dendrogram<
 									&mut cluster_sizes,
 									distance, other_root, root
 								);
+								pb.inc(1);
 							}
 						}
 					}
@@ -466,8 +478,9 @@ pub fn graph_based_dendrogram<
 					&mut union_find,
 					&mut cluster_ids,
 					&mut cluster_sizes,
-					d_ij, i_root, j_root
+					d_ij, i_root, j_root,
 				);
+				pb.inc(1);
 			}
 			/* Expand on the edge and add new entries to the expand queue
 			* unless that is disabled with `expand = false` */
