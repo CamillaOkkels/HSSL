@@ -864,12 +864,12 @@ where
 					dendrogram.push((
 						cluster_ids[i_root],
 						cluster_ids[j_root],
-						dist2,
+						num::Float::sqrt(dist2),
 						uf.subset_size(i_root) + uf.subset_size(j_root)
 					));
 					uf.union(i_root, j_root);
-					cluster_ids[i_root] = new_id;
-					cluster_ids[j_root] = new_id;
+					let new_root = uf.find(i_root);
+					cluster_ids[new_root] = new_id;
 
 					pb.inc(1);
 	
@@ -943,13 +943,13 @@ where
 					dendrogram.push((
 						cluster_ids[i_root],
 						cluster_ids[j_root],
-						min_dist,
+						num::Float::sqrt(min_dist),
 						uf.subset_size(i_root) + uf.subset_size(j_root),
 					));
 
 					uf.union(i_root, j_root);
-					cluster_ids[i_root] = new_id;
-					cluster_ids[j_root] = new_id;
+					let new_root = uf.find(i_root);
+					cluster_ids[new_root] = new_id;
 
 					pb.inc(1);
 
