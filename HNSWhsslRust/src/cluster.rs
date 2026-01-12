@@ -415,7 +415,7 @@ pub fn graph_based_dendrogram<
 			let j_cluster_size = cluster_sizes.get_unchecked(j_root);
 			let new_id = n + dendrogram.len();
 			let new_size = *i_cluster_size + *j_cluster_size;
-			dendrogram.push((*i_cluster_id, *j_cluster_id, distance, new_size));
+            dendrogram.push((*i_cluster_id, *j_cluster_id, num::Float::sqrt(distance), new_size));
 			/* Update union find and cluster infos */
 			union_find.union(R::from(i_root).unwrap_unchecked(), R::from(j_root).unwrap_unchecked());
 			let new_root = union_find.find(R::from(i_root).unwrap_unchecked()).to_usize().unwrap_unchecked(); // changed from j_root;
