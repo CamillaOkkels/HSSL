@@ -591,12 +591,12 @@ pub mod single_threaded {
 
 	pub struct HNSWBuilder<R: SyncUnsignedInteger, F: SyncFloat, Dist: Distance<F>+Sync+Send> {
 		_phantom: std::marker::PhantomData<F>,
-		n_data: usize,
+		pub n_data: usize,
 		params: HNSWParams<F>,
 		// add_edge_cache: Vec<(R,R,F)>,
 		// rem_edge_cache: Vec<(R,R)>,
 		n_layers: usize,
-		graphs: Vec<HNSWBuildGraph<R,F>>,
+		pub graphs: Vec<HNSWBuildGraph<R,F>>,
 		local_layer_ids: Vec<Vec<R>>,
 		global_layer_ids: Vec<Vec<R>>,
 		dist: Dist,
@@ -1258,12 +1258,12 @@ impl<R: SyncUnsignedInteger, F: SyncFloat> HNSWThreadCache<R,F> {
 }
 pub struct HNSWParallelHeapBuilder<R: SyncUnsignedInteger, F: SyncFloat, Dist: Distance<F>+Sync+Send> {
 	_phantom: std::marker::PhantomData<F>,
-	n_data: usize,
+	pub n_data: usize,
 	n_threads: usize,
 	params: HNSWParams<F>,
 	node_locks: Vec<Mutex<()>>,
 	n_layers: usize,
-	graphs: Vec<HNSWHeapBuildGraph<R,F>>,
+	pub graphs: Vec<HNSWHeapBuildGraph<R,F>>,
 	local_layer_ids: Vec<Vec<R>>,
 	global_layer_ids: Vec<Vec<R>>,
 	dist: Dist,

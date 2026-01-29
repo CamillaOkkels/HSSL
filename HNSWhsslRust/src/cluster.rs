@@ -1,5 +1,5 @@
 use foldhash::HashSet;
-use graphidx::{data::MatrixDataSource, graphs::{Graph, WeightedGraph}, heaps::MinHeap, measures::Distance, types::{SyncFloat, SyncUnsignedInteger}};
+use graphidx::{data::MatrixDataSource, graphs::{Graph, WeightedGraph}, heaps::MinHeap, indices::{GraphIndex, GreedyLayeredGraphIndex, GreedySingleGraphIndex}, measures::Distance, types::{SyncFloat, SyncUnsignedInteger}};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use std::collections::{VecDeque, HashMap};
@@ -176,11 +176,10 @@ impl<R: SyncUnsignedInteger> UnionFind<R> {
 }
 
 
-fn is_connected_hnsw_full<R: SyncUnsignedInteger, F: SyncFloat>(
-	hnsw: &HNSWParallelHeapBuilder<R, F, impl Distance<F> + Sync + Send>
+fn is_graph_connected<R: SyncUnsignedInteger, F: SyncFloat, G: WeightedGraph<R,F>>(
+	n: usize, graphs: &Vec<G>, global_ids: &Vec<Vec<R>>
 ) -> (bool, Vec<Vec<usize>>) {
 
-	let n = hnsw.n_data;
 	if n == 0 {
 		(true, Vec::<Vec<usize>>::new());
 	}
@@ -192,12 +191,13 @@ fn is_connected_hnsw_full<R: SyncUnsignedInteger, F: SyncFloat>(
 	let mut adjacency: Vec<HashSet<usize>> = (0..n).map(|_| HashSet::default()).collect();
 
 	// Loop over layers
-	for (layer_idx, graph) in hnsw._graphs().iter().enumerate() {
-		if layer_idx == 0 {
+	(0..graphs.len()).for_each(|i| {
+		let graph = &graphs[i];
+		if i == 0 { 
 			// Bottom layer: IDs are global
 			for i in 0..n {
 				let node = R::from_usize(i).unwrap();
-				for &(_, nbr) in graph.view_neighbors_heap(node).iter() {
+				for nbr in graph.iter_neighbors(node) {
 					let j = nbr.to_usize().unwrap();
 					adjacency[i].insert(j);
 					adjacency[j].insert(i);
@@ -206,11 +206,11 @@ fn is_connected_hnsw_full<R: SyncUnsignedInteger, F: SyncFloat>(
 			}
 		} else {
 			// Upper layers: need to map local → global
-			let global_ids = &hnsw._global_layer_ids()[layer_idx - 1];
-			for (local_idx, &global_i) in global_ids.iter().enumerate() {
+			let id_map = global_ids.get(i-1).unwrap();
+			for (local_idx, &global_i) in id_map.iter().enumerate() {
 				let node = R::from_usize(local_idx).unwrap();
-				for &(_, nbr_local) in graph.view_neighbors_heap(node).iter() {
-					let global_j = global_ids[nbr_local.to_usize().unwrap()];
+				for &nbr_local in graph.iter_neighbors(node) {
+					let global_j = id_map[nbr_local.to_usize().unwrap()];
 					let i_usize = global_i.to_usize().unwrap();
 					let j_usize = global_j.to_usize().unwrap();
 					adjacency[i_usize].insert(j_usize);
@@ -219,7 +219,7 @@ fn is_connected_hnsw_full<R: SyncUnsignedInteger, F: SyncFloat>(
 				}
 			}
 		}
-	}
+	});
 
 	// Collect connected components
 	let mut components_map: HashMap<R, Vec<usize>> = HashMap::new();
@@ -279,7 +279,7 @@ pub fn hnsw_based_dendrogram<
 	R: SyncUnsignedInteger,
 	M: MatrixDataSource<F>+graphidx::types::Sync,
 	Dist: Distance<F>+Sync+Send,
->(data: &M, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool, hnsw_params: HNSWParams<F>) -> (Vec<(usize, usize, F, usize)>, Vec<F>) {
+>(data: &M, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool, hnsw_params: HNSWParams<F>) -> (Vec<(usize, usize, F, usize)>, Vec<F>, Vec<Duration>) {
 	let n = data.n_rows();
 	assert!(R::max_value().to_usize().unwrap() >= n);
 	/* Build HNSW on the data and get the graphs */
@@ -294,7 +294,7 @@ pub fn hnsw_based_dendrogram_self_joined<
 	R: SyncUnsignedInteger,
 	M: MatrixDataSource<F>+graphidx::types::Sync,
 	Dist: Distance<F>+Sync+Send,
-	>(data: &M, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool, hnsw_params: HNSWParams<F>, self_join_neighbors: usize, query_max_heap_size: usize, query_local: bool) -> (Vec<(usize, usize, F, usize)>, Vec<F>) {
+	>(data: &M, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool, hnsw_params: HNSWParams<F>, self_join_neighbors: usize, query_max_heap_size: usize, query_local: bool) -> (Vec<(usize, usize, F, usize)>, Vec<F>, Vec<Duration>) {
 	let n = data.n_rows();
 	assert!(R::max_value().to_usize().unwrap() >= n);
 	/* Build HNSW on the data and get the graphs */
@@ -325,7 +325,7 @@ pub fn graph_based_dendrogram<
 	M: MatrixDataSource<F>+graphidx::types::Sync,
 	Dist: Distance<F>+Sync+Send,
 	G: WeightedGraph<R,F>,
->(data: &M, graphs: Vec<G>, global_ids: Vec<Vec<R>>, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool) -> (Vec<(usize, usize, F, usize)>, Vec<F>) {
+>(data: &M, graphs: Vec<G>, global_ids: Vec<Vec<R>>, dist: Dist, min_pts: usize, expand: bool, symmetric_expand: bool) -> (Vec<(usize, usize, F, usize)>, Vec<F>, Vec<Duration>) {
 	let n = data.n_rows();
 	assert!(R::max_value().to_usize().unwrap() >= n);
 
@@ -334,14 +334,12 @@ pub fn graph_based_dendrogram<
 	let milestone_steps = [0.25, 0.5, 0.75, 0.8, 0.9, 0.95, 0.99].map(|p| ((n - 1) as f64 * p).round() as usize);
 	let mut milestones = Vec::with_capacity(milestone_steps.len());
 
-    // Build HNSW on the data and get the graphs 
-    let hnsw = HNSWParallelHeapBuilder::<R,_,_>::base_init(data, dist, hnsw_params);
+    
 
-    let (connected, components) = is_connected_hnsw_full(&hnsw);
+    let (connected, components) = is_graph_connected(n, &graphs, &global_ids);
     /* println!("Graph is connected: {}", connected);
     println!("# of components: {}", components.len()); */
 
-	let (graphs, _, global_ids, dist) = hnsw._into_parts();
 	/* Create storage for observed edges and accessor function */
 	let mut observed_edges = ObservedEdgesStore::new(n);
 	/* Create an expand queue for edges and insert all edges from all graph levels */
@@ -446,7 +444,7 @@ pub fn graph_based_dendrogram<
 	/* Do the actual clustering */
 	unsafe {
 		/* Shorthand to merge two clusters */
-		let merge_clusters = |
+		let mut merge_clusters = |
 			dendrogram: &mut Vec<(usize,usize,F,usize)>,
 			union_find: &mut UnionFind<R>,
 			cluster_ids: &mut Vec<usize>,
@@ -658,7 +656,7 @@ mod tests {
 		println!("Mean core distance: {}", mean_core_dist);
 		println!("Std core distance: {}", std_core_dist);
 	}
-} */
+} 
 
 
 
@@ -836,11 +834,11 @@ where
 	/* println!("Building HNSW"); use std::io::*; std::io::stdout().flush(); */
 	let mut hnsw = HNSWParallelHeapBuilder::<R, _, _>::base_init(data, dist.clone(), hnsw_params);
 	/* println!("HNSW built"); use std::io::*; std::io::stdout().flush(); */
-	//let (graphs, _, _global_ids, dist) = hnsw._into_parts();
-	let (connected, components) = is_connected_hnsw_full(&hnsw);
+	let (mut graphs, _, global_ids, dist) = hnsw._into_parts();
+	let (connected, components) = is_graph_connected(n, &graphs, &global_ids);
 	/* println!("Graph is connected: {}", connected); */
 	
-	let bottom_layer = Rc::new(hnsw.graphs.remove(0));
+	let bottom_layer = Rc::new(graphs.remove(0));
 
 	let ef_usize = ef.to_usize().unwrap();
 
@@ -1047,7 +1045,7 @@ where
 */
 
 #[test]
-	fn test_hnsw_based_dendrogram_self_joined() {
+fn test_hnsw_based_dendrogram_self_joined() {
 		let (n,d) = (10_000, 3);
 		let rng1 = Normal::new(0.0, 1.0).unwrap();
 		let rng2 = Normal::new(5.0, 1.0).unwrap();
@@ -1074,7 +1072,6 @@ where
 			println!("Mean core distance: {}", mean_core_dist);
 			println!("Std core distance: {}", std_core_dist);
 		}
-	}
 }
 
 #[test]
