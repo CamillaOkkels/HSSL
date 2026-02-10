@@ -892,7 +892,7 @@ pub fn hnsw_based_dendrogram_self_joined<'py>(
 	}
 }
 
-/*
+
 #[pyfunction]
 #[pyo3(signature = (
     data,
@@ -962,7 +962,7 @@ fn hnsw_hssl(
         (dendrogram, milestone_seconds)
 	}
 }
-*/
+
 
 #[pymodule(name="hnswhsslrust")]
 fn hnsw(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -977,6 +977,7 @@ fn hnsw(m: &Bound<'_, PyModule>) -> PyResult<()> {
 	m.add_function(wrap_pyfunction!(load_hnswlib_fat, m)?)?;
 	m.add_function(wrap_pyfunction!(hnsw_based_dendrogram, m)?)?;
 	m.add_function(wrap_pyfunction!(hnsw_based_dendrogram_self_joined, m)?)?;
+	m.add_function(wrap_pyfunction!(hnsw_hssl, m)?)?;
 	Ok(())
 }
 
